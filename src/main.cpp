@@ -40,6 +40,9 @@ int main(int, char**) {
         return 1;
     }
     IMG_Init(IMG_INIT_PNG);
+    if (SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) != 0) {
+        SDL_Log("gamepad support unavailable: %s", SDL_GetError());
+    }
 
     SDL_Window* win = SDL_CreateWindow("reFlappy", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                        576, 1024, SDL_WINDOW_RESIZABLE);
@@ -114,6 +117,37 @@ int main(int, char**) {
             }
             if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
                 scene.onPointerUp();
+            }
+            // Gamepads. SDL reports controllers that are already plugged in at startup too.
+            if (e.type == SDL_CONTROLLERDEVICEADDED) {
+                if (SDL_GameController* pad = SDL_GameControllerOpen(e.cdevice.which)) {
+                    SDL_Log("gamepad connected: %s", SDL_GameControllerName(pad));
+                } else {
+                    SDL_Log("cannot open gamepad: %s", SDL_GetError());
+                }
+            }
+            if (e.type == SDL_CONTROLLERDEVICEREMOVED) {
+                if (SDL_GameController* pad = SDL_GameControllerFromInstanceID(e.cdevice.which)) {
+                    SDL_Log("gamepad disconnected: %s", SDL_GameControllerName(pad));
+                    SDL_GameControllerClose(pad);
+                }
+            }
+            if (e.type == SDL_JOYDEVICEADDED && !SDL_IsGameController(e.jdevice.which)) {
+                SDL_Log("joystick '%s' has no gamepad mapping, ignoring it",
+                        SDL_JoystickNameForIndex(e.jdevice.which));
+            }
+            if (e.type == SDL_CONTROLLERBUTTONDOWN) {
+                switch (e.cbutton.button) {
+                    // Like a tap anywhere: flap, or press Play on the menu and game over screens.
+                    case SDL_CONTROLLER_BUTTON_A:
+                    case SDL_CONTROLLER_BUTTON_B:
+                    case SDL_CONTROLLER_BUTTON_X:
+                    case SDL_CONTROLLER_BUTTON_Y:
+                    case SDL_CONTROLLER_BUTTON_START:
+                    case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
+                    case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: scene.onAction(); break;
+                    default: break;
+                }
             }
             if (e.type == SDL_KEYDOWN && !e.key.repeat) {
                 switch (e.key.keysym.sym) {
